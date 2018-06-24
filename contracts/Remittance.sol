@@ -20,6 +20,7 @@ contract Remittance is Pausible {
 
     mapping(bytes32 => uint) public balances;
     mapping(bytes32 => uint) public deadlines;
+    mapping(address => bytes32) public senders;
 
     /**
      * This constructor creates an instance of the Remittance contract.  
@@ -29,8 +30,7 @@ contract Remittance is Pausible {
     }
 
     modifier onlyWhenPuzzleSolved(string password1, string password2) {
-        require(balances[keccak256(abi.encodePacked(password1, password2))] != 0, 
-            "Passwords not correct");
+        require(getKeccak32(password1, password2) != 0, "Passwords not correct");
         _;
     }
  
@@ -59,7 +59,7 @@ contract Remittance is Pausible {
      * The sender can set the number of days from ${now} within which he/she 
      * can claim back the funds (without providing the password).
      **/
-    function send(bytes32 hash, uint daysClaim) 
+    function sendMoney(bytes32 hash, uint daysClaim) 
             public payable onlyWhenActive onlyWhenNotSendToAlready(hash) {
         require(daysClaim <= maxDaysClaimBack, "Days claim back too high");
         require(daysClaim > 0, "Days claim back must be greater than 0");
@@ -67,6 +67,9 @@ contract Remittance is Pausible {
         emit MoneySent(msg.sender, msg.value);
         balances[hash] = msg.value;
         deadlines[hash] = now + (24 * 60 * 60 * daysClaim);
+        /** Store the combination of sender and hash to be able to claim back
+         * later **/
+        senders[msg.sender] = hash;
     }
 
     /**
@@ -76,16 +79,20 @@ contract Remittance is Pausible {
     function withdraw(string password1, string password2) 
             payable public onlyWhenPuzzleSolved (password1, password2) 
             onlyWhenActive {
-        require(address(this).balance != 0, "No balance");
-        emit MoneyWithdrawnBy(msg.sender, address(this).balance);
-        msg.sender.transfer(address(this).balance);
+        uint availableBalance = balances[getKeccak32(password1, password2)];
+        require(availableBalance != 0, "No balance");
+        balances[getKeccak32(password1, password2)] = 
+            balances[getKeccak32(password1, password2)] - availableBalance;
+        emit MoneyWithdrawnBy(msg.sender, availableBalance);
+        msg.sender.transfer(availableBalance);
     } 
  
     function claimBack(bytes32 hash) public payable onlyWhenActive {
-        require(balances[hash] == 0, "Not the original sender");
+        require(senders[msg.sender] == hash, "Not the original sender");
+        require(balances[hash] != 0, "No balance");
         require(now <= deadlines[hash], "Deadline reached, funds not claimed back");
         emit MoneyClaimedBack(msg.sender);
-        msg.sender.transfer(address(this).balance);
+        msg.sender.transfer(balances[hash]);
     }
     
     /**
@@ -96,6 +103,11 @@ contract Remittance is Pausible {
         
         revert("Not implemented");
         
+    }
+    
+    function getKeccak32(string password1, string password2) pure private 
+            returns (bytes32) {
+        return keccak256(abi.encodePacked(password1, password2));        
     }
     
 }
