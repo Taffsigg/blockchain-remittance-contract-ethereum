@@ -8,9 +8,6 @@ Remittance contract.
 
 contract Remittance is Pausible {
 
-    bytes32 private hash1; 
-    bytes32 private hash2;
-
     event MoneySent(address sender, uint amount);
     event MoneyWithdrawnBy(address receiver, uint amount);
     event ContractCreated(address owner);
@@ -73,16 +70,16 @@ contract Remittance is Pausible {
     }
 
     /**
-     * Withdrawal can only be performed if both passwords translate to 
-     * hashes that were stored by the sender.
+     * Withdrawal that takes the funds from the balance identified by the hash
+     * provided by the sender.
      **/
     function withdraw(string password1, string password2) 
             payable public onlyWhenPuzzleSolved (password1, password2) 
             onlyWhenActive {
         uint availableBalance = balances[getKeccak32(password1, password2)];
         require(availableBalance != 0, "No balance");
-        balances[getKeccak32(password1, password2)] = 
-            balances[getKeccak32(password1, password2)] - availableBalance;
+        // Decrease the balance of the sender (identified with the hash)
+        balances[getKeccak32(password1, password2)] -= availableBalance;
         emit MoneyWithdrawnBy(msg.sender, availableBalance);
         msg.sender.transfer(availableBalance);
     } 
