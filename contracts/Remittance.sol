@@ -18,9 +18,8 @@ contract Remittance is Pausible {
     struct RemittanceData {
         uint balance;
         uint deadline;
-        address sender;
     }
-    
+
     /** mapping of remittances with as key the hash. The address of the sender
      * could also have used. But this way, the sender would have had max 
      * only one remittance going on at the same time. Using the hash as a key
@@ -35,7 +34,8 @@ contract Remittance is Pausible {
     }
 
     modifier onlyWhenPuzzleSolved(string password1, string password2) {
-        require(getKeccak32(password1, password2) != 0, "Passwords not correct");
+        require(remittances[getKeccak32(password1, password2)].balance != 0, 
+            "Passwords not correct or no balance");
         _;
     }
  
@@ -73,8 +73,6 @@ contract Remittance is Pausible {
         emit MoneySent(msg.sender, msg.value);
         remittances[hash].balance = msg.value;
         remittances[hash].deadline = now + (24 * 60 * 60 * daysClaim);
-        // Store the sender for claim back later
-        remittances[hash].sender = msg.sender;
     }
 
     /**
@@ -84,18 +82,16 @@ contract Remittance is Pausible {
     function withdraw(string password1, string password2) 
             payable public onlyWhenPuzzleSolved (password1, password2) 
             onlyWhenActive {
-        uint availableBalance = 
-            remittances[getKeccak32(password1, password2)].balance;
+        bytes32 hash = getKeccak32(password1, password2);
+        uint availableBalance = remittances[hash].balance;
         require(availableBalance != 0, "No balance");
-        remittances[getKeccak32(password1, password2)].balance -= availableBalance;
+        remittances[hash].balance -= availableBalance;
         emit MoneyWithdrawnBy(msg.sender, availableBalance);
         msg.sender.transfer(availableBalance);
     } 
  
     function claimBack(bytes32 hash) public payable onlyWhenActive {
-        require(remittances[hash].sender == msg.sender, 
-            "Not the original sender");
-        require(remittances[hash].balance > 0, "No balance");
+        require(remittances[hash].balance > 0, "No balance or not original sender");
         require(now <= remittances[hash].deadline, 
             "Deadline reached, funds not claimed back");
         uint availableBalance = remittances[hash].balance;
@@ -112,9 +108,9 @@ contract Remittance is Pausible {
         revert("Not implemented");
     }
     
-    function getKeccak32(string password1, string password2) pure private 
+    function getKeccak32(string password1, string password2) view public 
             returns (bytes32) {
-        return keccak256(abi.encodePacked(password1, password2));        
+        return keccak256(abi.encodePacked(msg.sender, password1, password2));        
     }
-    
+
 }
