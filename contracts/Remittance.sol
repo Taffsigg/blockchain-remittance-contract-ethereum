@@ -18,6 +18,7 @@ contract Remittance is Pausible {
     struct RemittanceData {
         uint balance;
         uint deadline;
+        address originalSender;
     }
 
     /** mapping of remittances with as key the hash. The address of the sender
@@ -59,7 +60,7 @@ contract Remittance is Pausible {
      * opcodes and can be extracted easily by a hacker. So the hashes should
      * be generates by a tool external to the Remittance contract. Alice
      * will have to generate a hash of the combined strings of the two 
-     * passwords. Keccak256 values can be generated here by Alice:
+     * passwords AND the public key of Carol. Keccak256 values can be generated here by Alice:
      * https://emn178.github.io/online-tools/keccak_256.html
      * 
      * The sender can set the number of days from ${now} within which he/she 
@@ -73,11 +74,17 @@ contract Remittance is Pausible {
         emit MoneySent(msg.sender, msg.value);
         remittances[hash].balance = msg.value;
         remittances[hash].deadline = now + (24 * 60 * 60 * daysClaim);
+        remittances[hash].originalSender = msg.sender;
     }
 
     /**
      * Withdrawal can only be performed if both passwords translate to 
-     * hashes that were stored by the sender.
+     * hashes that were stored by the sender. Alice created the 
+     * hash based on both passwords AND on the public key of Carol. 
+     * As a result, only when Carol does the withdraw, will the funds be unlocked. 
+     * Any other person trying to call this function will be stopped by onlyWhenPuzzleSolved
+     * because his/her public key (in combination with the two passwords), will not generate 
+     * the has that was stored by Alice
      **/
     function withdraw(string password1, string password2) 
             payable public onlyWhenPuzzleSolved (password1, password2) 
@@ -90,8 +97,15 @@ contract Remittance is Pausible {
         msg.sender.transfer(availableBalance);
     } 
  
+    /**
+     * The claimback function allows the original sender (Alice) to be 
+     * able to reclaim the funds. When Alice stored the hash, the address of Alice 
+     * was stored as well. So only when that address conincides with the address of the 
+     * account that calls this function, will the funds be tranferred to that account 
+     **/
     function claimBack(bytes32 hash) public payable onlyWhenActive {
-        require(remittances[hash].balance > 0, "No balance or not original sender");
+        require(remittances[hash].originalSender == msg.sender, "Not original sender");
+        require(remittances[hash].balance > 0, "No balance");
         require(now <= remittances[hash].deadline, 
             "Deadline reached, funds not claimed back");
         uint availableBalance = remittances[hash].balance;
