@@ -17,15 +17,28 @@ contract Remittance is Pausible {
 
     struct RemittanceData {
         uint balance;
+        address alice;
+        address carol;
         uint deadline;
-        address originalSender;
     }
 
-    /** mapping of remittances with as key the hash. The address of the sender
-     * could also have used. But this way, the sender would have had max 
-     * only one remittance going on at the same time. Using the hash as a key
-     * allows one sender to have multiple remittances. **/
+    /**
+     * Mapping of the result of Keccak256(password1, password2) to 
+     * the remittance data
+     * */
     mapping(bytes32 => RemittanceData) public remittances;
+
+    /** Mapping of the hash of Alice's address and an remittance id she chooses
+     * to the remittance hash. When claiming back the money, Alice shouldn't
+     * have to provide both passwords again as it would only verify 
+     * that she hasn't forgotten the passwords. Just calling the claimback 
+     * function with the id (and implicitly her address)
+     * should be enough to give her back the funds. The id is necessary because
+     * this contract should be a service. Alice could particate in more than
+     * one remittance (at the same time). So her address is not enough to
+     * map uniquely to remittances. An extra unique id that she chooses 
+     * suffices in that case */
+    mapping(bytes32 => bytes32) public claimbacks;
 
     /**
      * This constructor creates an instance of the Remittance contract.  
@@ -34,84 +47,81 @@ contract Remittance is Pausible {
         emit ContractCreated(owner);
     }
 
-    modifier onlyWhenPuzzleSolved(string password1, string password2) {
-        require(remittances[getKeccak32(password1, password2)].balance != 0, 
-            "Passwords not correct or no balance");
-        _;
-    }
- 
-    /** Modifier that checks whether the hash is non-empty. Initially
-     * when the contract is created, the hash with be empty. Once a 
-     * person sends money to the contract, the hash is filled. A hacker might
-     * send a small amount of ether in order to overwrite the hashes and
-     * thus gain access to the funds. This modifier prevents this kind of
-     * attack
-     */
-    modifier onlyWhenNotSendToAlready(bytes32 hash) {
-        require(remittances[hash].balance == 0, "Money already sent associated with hash");
-        _;
-    }
-
     /**
-     * This function  accepts the keccak32 hash. 
-     * The crucial part is that the hash cannot be produred inside the 
-     * contract itself, as the passwords on which the keccak32 
-     * hashes are based will be stored in transaction 
-     * opcodes and can be extracted easily by a hacker. So the hashes should
-     * be generates by a tool external to the Remittance contract. Alice
-     * will have to generate a hash of the combined strings of the two 
-     * passwords AND the public key of Carol. Keccak256 values can be generated here by Alice:
-     * https://emn178.github.io/online-tools/keccak_256.html
-     * 
-     * The sender can set the number of days from ${now} within which he/she 
-     * can claim back the funds (without providing the password).
-     **/
-    function sendMoney(bytes32 hash, uint daysClaim) 
-            public payable onlyWhenActive onlyWhenNotSendToAlready(hash) {
+     * This function sends money to the remittance contract. It accept both 
+     * Carol's and Bob's passwords, Carol's address, and id that uniquely 
+     * identifies the remittance and the days within which the money can be 
+     * claimed back by Alice. The id is necessary as indicated before. See 
+     * comments of claimback mapping definition. Alice should give the
+     * id to Carol. */
+    function sendMoney(
+            string passwordCarol, string passwordBob, address carol,
+            string id, uint daysClaim)  
+            public payable 
+            onlyWhenActive {
+                
+        require(bytes(id).length != 0, "id must have at least one character");
         require(daysClaim <= maxDaysClaimBack, "Days claim back too high");
         require(daysClaim > 0, "Days claim back must be greater than 0");
         require(msg.value > 0, "Value sent must be greater than 0");
+        bytes32 remittanceHash = 
+            getKeccak256ForRemittance(passwordCarol, passwordBob, carol, id);
+        require(remittances[remittanceHash].balance == 0x0, 
+            "Combination of passwords and id already used before");
+        bytes32 claimbackHash = getKeccak256ForClaimback(id);
+        require(claimbacks[claimbackHash] == 0x0, 
+            "Id already used for other remittance");
+        remittances[remittanceHash].balance = msg.value;
+        remittances[remittanceHash].alice = msg.sender;
+        remittances[remittanceHash].carol = carol;
+        remittances[remittanceHash].deadline = now + (24 * 60 * 60 * daysClaim);
+        claimbacks[claimbackHash] = remittanceHash;
         emit MoneySent(msg.sender, msg.value);
-        remittances[hash].balance = msg.value;
-        remittances[hash].deadline = now + (24 * 60 * 60 * daysClaim);
-        remittances[hash].originalSender = msg.sender;
+
     }
 
     /**
-     * Withdrawal can only be performed if both passwords translate to 
-     * hashes that were stored by the sender. Alice created the 
-     * hash based on both passwords AND on the public key of Carol. 
-     * As a result, only when Carol does the withdraw, will the funds be unlocked. 
-     * Any other person trying to call this function will be stopped by onlyWhenPuzzleSolved
-     * because his/her public key (in combination with the two passwords), will not generate 
-     * the has that was stored by Alice
-     **/
-    function withdraw(string password1, string password2) 
-            payable public onlyWhenPuzzleSolved (password1, password2) 
-            onlyWhenActive {
-        bytes32 hash = getKeccak32(password1, password2);
-        uint availableBalance = remittances[hash].balance;
-        require(availableBalance != 0, "No balance");
-        remittances[hash].balance -= availableBalance;
+     * Function that allows Carol to withdraw the balance. Carol has to 
+     * provide both her own password and the password that Bob gave to her.
+     * She also has to provide the remittance id that Alice will give to her
+     */
+    function withdraw(string passwordCarol, string passwordBob, string id) 
+            onlyWhenActive public {
+
+        require(bytes(id).length != 0, "id must have at least one character");
+        bytes32 remittanceHash = 
+            getKeccak256ForRemittance(passwordCarol, passwordBob, 
+                msg.sender, id);
+        require(remittances[remittanceHash].balance != 0x0, 
+            "Combination of password and/or id not correct or no balance");
+        uint availableBalance = remittances[remittanceHash].balance;
+        remittances[remittanceHash].balance = 0;
         emit MoneyWithdrawnBy(msg.sender, availableBalance);
         msg.sender.transfer(availableBalance);
+        
     } 
  
     /**
-     * The claimback function allows the original sender (Alice) to be 
-     * able to reclaim the funds. When Alice stored the hash, the address of Alice 
-     * was stored as well. So only when that address conincides with the address of the 
-     * account that calls this function, will the funds be tranferred to that account 
+     * Carol can claim back the funds before Carol has withdrawn it. Alice only
+     * needs to provide the id of the remittance. 
      **/
-    function claimBack(bytes32 hash) public payable onlyWhenActive {
-        require(remittances[hash].originalSender == msg.sender, "Not original sender");
-        require(remittances[hash].balance > 0, "No balance");
-        require(now <= remittances[hash].deadline, 
+    function claimBack(string id) public payable onlyWhenActive {
+        
+        require(bytes(id).length != 0, "id must have at least one character");
+        bytes32 claimbackHash = getKeccak256ForClaimback(id);
+        require(claimbacks[claimbackHash] != 0x0, 
+            "Combination of id and address not correct or already claimed back");
+        bytes32 remittanceHash = claimbacks[claimbackHash];
+        require(remittances[remittanceHash].balance != 0x0, 
+            "Remittance not accessible"); // Hack or appplication error ?
+        require(now <= remittances[remittanceHash].deadline, 
             "Deadline reached, funds not claimed back");
-        uint availableBalance = remittances[hash].balance;
-        remittances[hash].balance = 0;
+        uint availableBalance = remittances[remittanceHash].balance;
+        remittances[remittanceHash].balance = 0;
+        claimbacks[claimbackHash] = 0x0;
         emit MoneyClaimedBack(msg.sender);
         msg.sender.transfer(availableBalance);
+        
     }
     
     /**
@@ -122,9 +132,17 @@ contract Remittance is Pausible {
         revert("Not implemented");
     }
     
-    function getKeccak32(string password1, string password2) view public 
-            returns (bytes32) {
-        return keccak256(abi.encodePacked(msg.sender, password1, password2));        
+    function getKeccak256ForRemittance(
+        string passwordCarol, string passwordBob, address carol, string id) 
+        pure private
+        returns (bytes32) {
+        return keccak256(abi.encodePacked(passwordCarol, passwordBob, id, carol));        
+    }
+
+    function getKeccak256ForClaimback(string id) 
+        view private
+        returns (bytes32) {
+        return keccak256(abi.encodePacked(msg.sender, id));        
     }
 
 }

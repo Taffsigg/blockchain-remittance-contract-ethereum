@@ -1,8 +1,6 @@
 const Remittance = artifacts.require("./Remittance.sol");
 const BigNumber = require('bignumber.js');
 const Promise = require('bluebird');
-const ethers = require('ethers');  
-const web3Utils = require('web3-utils');
 
 contract('Remittance', function(accounts) {
 
@@ -56,8 +54,8 @@ contract('Remittance', function(accounts) {
       return remittance.deactivate({ from: accounts[0] })
         .then(function() {
         return expectedExceptionPromise(function () {
-          return remittance.sendMoney(web3Utils.toHex("dummyHash"), daysClaim, {from: accounts[0], value: totalAmount, 
-            gasPrice: gasPrice});
+          return remittance.sendMoney("password1", "password2", accounts[1], "1",  daysClaim, 
+            {from: accounts[0], value: totalAmount, gasPrice: gasPrice});
         });
       });
     });
@@ -67,8 +65,8 @@ contract('Remittance', function(accounts) {
       return getContractBalance()
         .then(function (balance) {
         balanceBefore = balance;
-        return remittance.sendMoney(web3Utils.toHex("dummyHash"), daysClaim, {from: accounts[0], value: totalAmount, 
-          gasPrice: gasPrice});
+        return remittance.sendMoney("password1", "password2", accounts[1], "1",  daysClaim, 
+        {from: accounts[0], value: totalAmount, gasPrice: gasPrice});
       }).then(function (txObj) {
         assert.strictEqual(txObj.logs[0].event, "MoneySent");
         assert.strictEqual(txObj.logs[0].args.sender, accounts[0]);
@@ -87,20 +85,20 @@ contract('Remittance', function(accounts) {
   describe("Claiming back", function() {
     it("should allow claim back by original sender", function() {
       let balanceBefore;
-      return remittance.sendMoney(web3Utils.toHex("dummyHash"), daysClaim, {from: accounts[0], value: totalAmount, 
-          gasPrice: gasPrice})
+      return remittance.sendMoney("password1", "password2", accounts[1], "1",  daysClaim, 
+        {from: accounts[0], value: totalAmount, gasPrice: gasPrice})
         .then(function () {
-        return getContractBalance();
+          return getContractBalance();
       }).then(function (balance) {
         balanceBefore = balance;
-        return remittance.claimBack(web3Utils.toHex("dummyHash"), {from: accounts[0], gasPrice: gasPrice});
+        console.log("fsdfsdfdsf");
+        return remittance.claimBack("1", {from: accounts[0], gasPrice: gasPrice});
       }).then(function (txObj) {
         assert.strictEqual(txObj.logs[0].event, "MoneyClaimedBack");
         assert.strictEqual(txObj.logs[0].args.originalSender, accounts[0]);
         return getContractBalance();
       }).then(function (balance) {
         let balanceAfter = balance;
-        console.log("fsdfsdfdsf");
         assert.strictEqual
           (totalAmount.toString(10),
           new BigNumber(balanceBefore).minus(new BigNumber(balanceAfter)).toString(10), 
@@ -108,15 +106,15 @@ contract('Remittance', function(accounts) {
       });
     });
 
-    it("should not allow claim back by hacker", function() {
+    it("should not allow claim back by other person", function() {
       let balanceBefore;
-      return remittance.sendMoney(web3Utils.toHex("dummyHash"), daysClaim, {from: accounts[0], value: totalAmount, 
-          gasPrice: gasPrice})
+      return remittance.sendMoney("password1", "password2", accounts[1], "1",  daysClaim, 
+        {from: accounts[0], value: totalAmount, gasPrice: gasPrice})
         .then(function () {
         return getContractBalance();
       }).then(function (balance) {
         return expectedExceptionPromise(function () {
-          return remittance.claimBack(web3Utils.toHex("hackerHash"), {from: accounts[0], gasPrice: gasPrice});
+          return remittance.claimBack("1", {from: accounts[1], gasPrice: gasPrice});
         });
       });
     });
