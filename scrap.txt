@@ -1,6 +1,60 @@
-"0xabbe6325ea0d23629e7199100ba1e9ba2278c0a33a9c4bfc6cd091e5a2608f1a", "0x7a4b354a32c27a83597817ec5071ebc31c4dbe3b95f47c1216af1d5a9f110c82"
-(msg.sender) "password1" , "password2" 
+alice: 0xca35b7d915458ef540ade6068dfe2f44e8fa733c
+
+carol: 0x14723a09acff6d2a60dcdf7aa4aff308fddc160c
+password carol: password1
+password bob: password2
+
+bob: 0x4b0897b0513fdc7c541b6d9d7e929c4e5364d2db
+
+"password1", "password2"
+remittance hash: 0x0f1faeee93a30346dd7f45f531d6dbc7ddba55cea001dd0099b4e14ae6a54869
+
+0x75a03df79d52893604032d017944a2fa9b63ccf6b3036cc30a4bb0a5d1aa4057
 
 
-combined hash
-0x3819a97f8cfa2d4b30e770c2794d919c8ce5b380d03f511422049e60ad69af93
+ describe("Withdrawing", function() {
+
+    it("should allow the withdrawl of " + totalAmount + " from  Remittance contract", function() {
+      let balanceBefore;
+      let txObj;
+      remittanceHash = web3Utils.keccak256(carol + web3Utils.toHex(passwordCarol) + 
+          web3Utils.toHex(passwordBob));
+      return remittance.sendMoney(remittanceHash, daysClaim,
+          {from: carol, value: totalAmount, gasPrice: gasPrice})
+      .then(function () {
+        return web3.eth.getBalancePromise(carol);
+      }).then(function (balance) {
+        balanceBefore = balance;
+        return remittance.withdrawal(passwordCarol, passwordBob, {from: carol, 
+          value: totalAmount, gasPrice: gasPrice});
+      }).then(function (_txObj) {
+        txObj = _txObj
+        assert.strictEqual(txObj.logs[0].event, "MoneyWithdrawnBy");
+        assert.strictEqual(txObj.logs[0].args.receiver, carol);
+        return web3.eth.getBalancePromise(carol);
+      }).then(function (balance) {
+        balanceAfter = balance;
+        assert.strictEqual(
+          new BigNumber(balanceBefore).plus(new BigNumber(totalAmount)).toString(10), 
+          new BigNumber(balanceAfter).plus(new BigNumber(getGasUsedInWei(txObj))).toString(10), 
+          "Benifciary did not withdraw " + splitAmount.toString(10));
+      });
+    });
+
+  });
+
+
+Remittance.new({ from: carol }).then(instance => remittance = instance);
+remittanceHash = web3Utils.keccak256(carol + web3Utils.toHex(passwordCarol) + web3Utils.toHex(passwordBob));
+remittance.sendMoney(remittanceHash, daysClaim, {from: alice, value: totalAmount, gasPrice: gasPrice})
+remittance.withdraw(passwordCarol, passwordBob, {from: carol, value: totalAmount, gasPrice: gasPrice});
+
+
+remittanceHash = web3Utils.keccak256("14723a09acff6d2a60dcdf7aa4aff308fddc160c" + web3Utils.toHex("p1") + web3Utils.toHex("p2"), {encoding:"hex"});
+remittanceHash = web3Utils.keccak256(carol + "p1" + "p2");
+remittanceHash = web3Utils.keccak256("0x14723a09acff6d2a60dcdf7aa4aff308fddc160c" + "p1" + "p2");
+0xabfd07f92ea6a855e3c59612c7f78ac79e208e497d0bb6a6bfa29aff81c4a9fe
+
+
+
+abi.soliditySHA3([ "string", "string", "address" ],[ "p1", "p2", new BN("14723a09acff6d2a60dcdf7aa4aff308fddc160c", 16)]).toString('hex')
