@@ -18,7 +18,7 @@ contract('Remittance', function(accounts) {
 
   const passwordCarol = "p1";
   const passwordBob = "p2";
-  
+    
   let remittance;
 
   function getGasUsedInWei(txObj) {
@@ -29,7 +29,7 @@ contract('Remittance', function(accounts) {
       return web3.eth.getBalancePromise(remittance.address);
   }
 
-  function getKeccak256(password1, password2, address) {
+  function getKeccak256(address, password) {
     /**
      * web3utils keccak256 can't seem to calculate the hash 
      * based on three inputs (At least I couldn't get the 
@@ -38,8 +38,8 @@ contract('Remittance', function(accounts) {
      * https://github.com/ethereum/web3.js/issues/445
      */
     return "0x" + abi.soliditySHA3(
-      [ "string", "string", "address" ],
-      [ password1, password2, address]).toString('hex')
+      [ "address", "string"],
+      [  address,  password]).toString('hex')
   }
 
   beforeEach("should deploy a new instance", function() {
@@ -166,7 +166,7 @@ contract('Remittance', function(accounts) {
       let balanceBeforeCarol;
       let contractBalanceBefore;
       let txObj;
-      remittanceHash = getKeccak256(passwordCarol, passwordBob, carol);
+      remittanceHash = getKeccak256(carol, passwordBob);
       return remittance.sendMoney(remittanceHash, daysClaim,
         {from: alice, value: totalAmount, gasPrice: gasPrice})
       .then(function () {
@@ -176,8 +176,7 @@ contract('Remittance', function(accounts) {
         return web3.eth.getBalancePromise(carol);
       }).then(function (balance) {
         balanceBeforeCarol = balance;
-        return remittance.withdraw(passwordCarol, passwordBob, {from: carol, 
-          gasPrice: gasPrice});
+        return remittance.withdraw(passwordBob, {from: carol, gasPrice: gasPrice});
       }).then(function (_txObj) {
         txObj = _txObj
         assert.strictEqual(txObj.logs[0].event, "MoneyWithdrawnBy");
@@ -202,42 +201,39 @@ contract('Remittance', function(accounts) {
 
     it("should not allow the withdrawl of " + totalAmount + 
        " by Carol with an incorrect password of Bob", function() {
-      remittanceHash = getKeccak256(passwordCarol, "passwordBobNotCorrect", carol);
+      remittanceHash = getKeccak256(carol, "passwordBobNotCorrect");
       return remittance.sendMoney(remittanceHash, daysClaim,
         {from: bob, value: totalAmount, gasPrice: gasPrice})
       .then(function () {
         return expectedExceptionPromise(function () {
-          return remittance.withdraw(passwordCarol, passwordBob, 
-            {from: bob, gasPrice: gasPrice});
+          return remittance.withdraw(passwordBob, {from: bob, gasPrice: gasPrice});
         });
       });
     });
 
     it("should not allow the withdrawl of " + totalAmount + " by Bob", function() {
-      remittanceHash = getKeccak256(passwordCarol, passwordBob, carol);
+      remittanceHash = getKeccak256(carol, passwordBob);
       return remittance.sendMoney(remittanceHash, daysClaim,
         {from: alice, value: totalAmount, gasPrice: gasPrice})
       .then(function () {
         return web3.eth.getBalancePromise(carol);
       }).then(function () {
         return expectedExceptionPromise(function () {
-          return remittance.withdraw(passwordCarol, passwordBob, 
-            {from: bob, gasPrice: gasPrice});
+          return remittance.withdraw(passwordBob, {from: bob, gasPrice: gasPrice});
         });
       });
     });
 
     it("should not allow a double withdrawl of " + totalAmount + " by Carol", function() {
-      remittanceHash = getKeccak256(passwordCarol, passwordBob, carol);
+      remittanceHash = getKeccak256(carol, passwordBob);
       return remittance.sendMoney(remittanceHash, daysClaim,
           {from: alice, value: totalAmount, gasPrice: gasPrice})
       .then(function () {
-        return remittance.withdraw(passwordCarol, passwordBob, {from: carol, 
+        return remittance.withdraw(passwordBob, {from: carol, 
           gasPrice: gasPrice});
       }).then(function (_txObj) {
         return expectedExceptionPromise(function () {
-          return remittance.withdraw(passwordCarol, passwordBob, 
-            {from: carol, gasPrice: gasPrice});
+          return remittance.withdraw(passwordBob,  {from: carol, gasPrice: gasPrice});
         });
       });
     });
@@ -247,11 +243,11 @@ contract('Remittance', function(accounts) {
   describe("Remittance as a service", function() {
 
     it("should allow two remittance processes simultaneously", function() {
-      remittanceHash1 = getKeccak256(passwordCarol, passwordBob, carol);
+      remittanceHash1 = getKeccak256(carol, passwordBob);
       return remittance.sendMoney(remittanceHash1, daysClaim,
         {from: alice, value: totalAmount, gasPrice: gasPrice})
       .then(function () {
-        remittanceHash2 = getKeccak256(passwordBob, passwordCarol, bob);
+        remittanceHash2 = getKeccak256(bob, passwordCarol);
         return remittance.sendMoney(remittanceHash2, daysClaim,
           {from: alice, value: totalAmount, gasPrice: gasPrice})
       }).then(function () {
@@ -262,18 +258,16 @@ contract('Remittance', function(accounts) {
           new BigNumber(contractBalance).toString(10), 
           new BigNumber(totalAmount).multipliedBy(2).toString(10),
           "Carol did not withdraw " + totalAmount.toString(10));
-        return remittance.withdraw(passwordCarol, passwordBob, {from: carol, 
-          gasPrice: gasPrice});
+        return remittance.withdraw(passwordBob, {from: carol, gasPrice: gasPrice});
       }).then(function (j) {
-        return remittance.withdraw(passwordBob, passwordCarol, {from: bob, 
-          gasPrice: gasPrice});
+        return remittance.withdraw(passwordCarol, {from: bob, gasPrice: gasPrice});
       }).then(function (j) {
         return getContractBalance();
       }).then(function (balance) {
         contractBalance = balance;
         assert.strictEqual(
           new BigNumber(contractBalance).toString(10), "0",
-          "Carol did not withdraw " + totalAmount.toString(10));
+          "Bob did not withdraw " + totalAmount.toString(10));
       });
     });
 

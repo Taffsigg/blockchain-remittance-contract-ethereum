@@ -58,3 +58,8 @@ remittanceHash = web3Utils.keccak256("0x14723a09acff6d2a60dcdf7aa4aff308fddc160c
 
 
 abi.soliditySHA3([ "string", "string", "address" ],[ "p1", "p2", new BN("14723a09acff6d2a60dcdf7aa4aff308fddc160c", 16)]).toString('hex')
+
+
+Carol address:
+0x14723A09ACFF6D2A60DCDF7AA4AFF308FDDC160C
+
