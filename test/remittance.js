@@ -16,9 +16,9 @@ contract('Remittance', function(accounts) {
   const carol = accounts[1];
   const bob = accounts[2];
 
-  const passwordCarol = "p1";
-  const passwordBob = "p2";
-    
+  const passwordCarol = web3.fromAscii("p1", 32);
+  const passwordBob = web3.fromAscii("p2", 32);
+  
   let remittance;
 
   function getGasUsedInWei(txObj) {
@@ -40,6 +40,11 @@ contract('Remittance', function(accounts) {
     return "0x" + abi.soliditySHA3(
       [ "address", "string"],
       [  address,  password]).toString('hex')
+  }
+
+  function getKeccak256FromContract(address, password) {
+    return remittance.getKeccak256.call(address, password, 
+      {from: alice, gasPrice: gasPrice});
   }
 
   beforeEach("should deploy a new instance", function() {
@@ -166,10 +171,13 @@ contract('Remittance', function(accounts) {
       let balanceBeforeCarol;
       let contractBalanceBefore;
       let txObj;
-      remittanceHash = getKeccak256(carol, passwordBob);
-      return remittance.sendMoney(remittanceHash, daysClaim,
-        {from: alice, value: totalAmount, gasPrice: gasPrice})
-      .then(function () {
+      let remittanceHash;
+      return getKeccak256FromContract(carol, passwordBob)
+      .then(function (hash) {
+        remittanceHash = hash;
+        return remittance.sendMoney(remittanceHash, daysClaim,
+          {from: alice, value: totalAmount, gasPrice: gasPrice});
+      }).then(function () {
         return getContractBalance();
       }).then(function (balance) {
         contractBalanceBefore = balance;
@@ -201,10 +209,12 @@ contract('Remittance', function(accounts) {
 
     it("should not allow the withdrawl of " + totalAmount + 
        " by Carol with an incorrect password of Bob", function() {
-      remittanceHash = getKeccak256(carol, "passwordBobNotCorrect");
-      return remittance.sendMoney(remittanceHash, daysClaim,
-        {from: bob, value: totalAmount, gasPrice: gasPrice})
-      .then(function () {
+      return getKeccak256FromContract(carol, passwordBob)
+      .then(function (hash) {
+        remittanceHash = hash;
+        return remittance.sendMoney(remittanceHash, daysClaim,
+          {from: bob, value: totalAmount, gasPrice: gasPrice});
+      }).then(function () {
         return expectedExceptionPromise(function () {
           return remittance.withdraw(passwordBob, {from: bob, gasPrice: gasPrice});
         });
@@ -212,10 +222,12 @@ contract('Remittance', function(accounts) {
     });
 
     it("should not allow the withdrawl of " + totalAmount + " by Bob", function() {
-      remittanceHash = getKeccak256(carol, passwordBob);
-      return remittance.sendMoney(remittanceHash, daysClaim,
+      return getKeccak256FromContract(carol, passwordBob)
+      .then(function (hash) {
+        remittanceHash = hash;
+        return remittance.sendMoney(remittanceHash, daysClaim,
         {from: alice, value: totalAmount, gasPrice: gasPrice})
-      .then(function () {
+      }).then(function () {
         return web3.eth.getBalancePromise(carol);
       }).then(function () {
         return expectedExceptionPromise(function () {
@@ -225,10 +237,12 @@ contract('Remittance', function(accounts) {
     });
 
     it("should not allow a double withdrawl of " + totalAmount + " by Carol", function() {
-      remittanceHash = getKeccak256(carol, passwordBob);
-      return remittance.sendMoney(remittanceHash, daysClaim,
+      return getKeccak256FromContract(carol, passwordBob)
+      .then(function (hash) {
+        remittanceHash = hash;
+        return remittance.sendMoney(remittanceHash, daysClaim,
           {from: alice, value: totalAmount, gasPrice: gasPrice})
-      .then(function () {
+      }).then(function () {
         return remittance.withdraw(passwordBob, {from: carol, 
           gasPrice: gasPrice});
       }).then(function (_txObj) {
@@ -243,11 +257,15 @@ contract('Remittance', function(accounts) {
   describe("Remittance as a service", function() {
 
     it("should allow two remittance processes simultaneously", function() {
-      remittanceHash1 = getKeccak256(carol, passwordBob);
-      return remittance.sendMoney(remittanceHash1, daysClaim,
-        {from: alice, value: totalAmount, gasPrice: gasPrice})
-      .then(function () {
-        remittanceHash2 = getKeccak256(bob, passwordCarol);
+      return getKeccak256FromContract(carol, passwordBob)
+      .then(function (hash) {
+        remittanceHash1 = hash;
+        return remittance.sendMoney(remittanceHash1, daysClaim,
+          {from: alice, value: totalAmount, gasPrice: gasPrice})
+      }).then(function () {
+        return getKeccak256FromContract(bob, passwordCarol)
+      }).then(function (hash) {
+        remittanceHash2 = hash;
         return remittance.sendMoney(remittanceHash2, daysClaim,
           {from: alice, value: totalAmount, gasPrice: gasPrice})
       }).then(function () {

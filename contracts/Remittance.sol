@@ -21,7 +21,7 @@ contract Remittance is Pausible {
     }
 
     /**
-     * Mapping of the result of Keccak256(sender, passwordBob) to 
+     * Mapping of the result of Keccak256(recipient, passwordBob) to 
      * the remittance data. This Keccak256 hash will be generated outside of
      * the contract by Alice based on the account address of Carol and 
      * Bob's passwords. 
@@ -51,7 +51,7 @@ contract Remittance is Pausible {
             "Remittance hash already used (Choose other passwords) or in use or incorrect remittance hash");
         remittances[remittanceHash].balance = msg.value;
         remittances[remittanceHash].sender = msg.sender;
-        remittances[remittanceHash].deadline = now + (24 * 60 * 60 * daysClaim);
+        remittances[remittanceHash].deadline = now + (daysClaim * 1 days);
         emit MoneySent(msg.sender, msg.value);
 
     }
@@ -66,12 +66,13 @@ contract Remittance is Pausible {
      * Alice or anybody else could snatch the funds before she could.
      **/
     function withdraw(string passwordBob) 
-            public payable onlyWhenActive {
+            public onlyWhenActive {
 
         bytes32 remittanceHash = getKeccak256(msg.sender, passwordBob);
+        uint availableBalance;
         require(remittances[remittanceHash].balance != 0x0, 
             "Combination of passwords is not correct or no balance");
-        uint availableBalance = remittances[remittanceHash].balance;
+        availableBalance = remittances[remittanceHash].balance;
         remittances[remittanceHash].balance = 0;
         emit MoneyWithdrawnBy(msg.sender, availableBalance);
         msg.sender.transfer(availableBalance);
