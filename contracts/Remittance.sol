@@ -44,11 +44,11 @@ contract Remittance is Pausible {
     function sendMoney(
             bytes32 remittanceHash, uint daysClaim)  public payable onlyWhenActive {
                 
-        require(daysClaim <= maxDaysClaimBack && daysClaim > 0, 
-            "Days claim back must be between 1 and 30");
+        require(daysClaim <= maxDaysClaimBack, "Days claim back must be between 1 and 30");
+        require(daysClaim > 0, "Days claim back must be between 1 and 30");
         require(msg.value > 0, "Value sent must be greater than 0");
-        require(remittanceHash != 0x0 && remittances[remittanceHash].sender == 0x0, 
-            "Remittance hash already used (Choose other passwords) or in use or incorrect remittance hash");
+        require(remittanceHash != 0x0, "Incorrect remittance hash");
+        require(remittances[remittanceHash].sender == 0x0, "Remittance hash already used");
         remittances[remittanceHash].balance = msg.value;
         remittances[remittanceHash].sender = msg.sender;
         remittances[remittanceHash].deadline = now + (daysClaim * 1 days);
@@ -111,8 +111,8 @@ contract Remittance is Pausible {
      * address, before calling the function sendMoney. 
      **/
     function getKeccak256(address _address, string passwordBob) 
-        pure public returns (bytes32) {
-        return keccak256(abi.encodePacked(_address, passwordBob));        
+        view public returns (bytes32) {
+        return keccak256(abi.encodePacked(address(this), _address, passwordBob));        
     }
 
 }

@@ -29,19 +29,6 @@ contract('Remittance', function(accounts) {
       return web3.eth.getBalancePromise(remittance.address);
   }
 
-  function getKeccak256(address, password) {
-    /**
-     * web3utils keccak256 can't seem to calculate the hash 
-     * based on three inputs (At least I couldn't get the 
-     * same results with solidity and web3.utils.keccak256). I found
-     * a reference here that talks about the issue:
-     * https://github.com/ethereum/web3.js/issues/445
-     */
-    return "0x" + abi.soliditySHA3(
-      [ "address", "string"],
-      [  address,  password]).toString('hex')
-  }
-
   function getKeccak256FromContract(address, password) {
     return remittance.getKeccak256.call(address, password, 
       {from: alice, gasPrice: gasPrice});
