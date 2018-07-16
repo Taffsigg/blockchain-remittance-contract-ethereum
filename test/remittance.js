@@ -2,6 +2,7 @@ const Remittance = artifacts.require("./Remittance.sol");
 const BigNumber = require('bignumber.js');
 const Promise = require('bluebird');
 const abi = require('ethereumjs-abi')
+var sleep = require('sleep');
 
 contract('Remittance', function(accounts) {
 
@@ -10,7 +11,8 @@ contract('Remittance', function(accounts) {
   const expectedExceptionPromise = require("./expected_exception_ganache_and_geth.js");  
   const gasPrice = 100000000000;
   const totalAmount = 1000000000000000;
-  const daysClaim = 10;
+  const secondsClaimBack = 10;
+  const secondsClaimBackShort = 2;
 
   const alice = accounts[0];
   const carol = accounts[1];
@@ -66,7 +68,7 @@ contract('Remittance', function(accounts) {
       return remittance.deactivate({ from: carol })
         .then(function() {
         return expectedExceptionPromise(function () {
-          return remittance.sendMoney("some unimportant hash",  daysClaim, 
+          return remittance.sendMoney("some unimportant hash",  secondsClaimBack, 
             {from: alice, value: totalAmount, gasPrice: gasPrice});
         });
       });
@@ -77,7 +79,7 @@ contract('Remittance', function(accounts) {
       return getContractBalance()
         .then(function (balance) {
         balanceBefore = balance;
-        return remittance.sendMoney("some unimportant hash", daysClaim,
+        return remittance.sendMoney("some unimportant hash", secondsClaimBack,
           {from: alice, value: totalAmount, gasPrice: gasPrice});
       }).then(function (txObj) {
         assert.strictEqual(txObj.logs[0].event, "MoneySent");
@@ -97,13 +99,17 @@ contract('Remittance', function(accounts) {
   describe("Claiming back", function() {
     it("should allow claim back by original sender Alice", function() {
       let balanceBefore;
-      return remittance.sendMoney("hash1",  daysClaim, 
-        {from: alice, value: totalAmount, gasPrice: gasPrice})
-        .then(function () {
+      return getKeccak256FromContract(carol, passwordBob)
+      .then(function (hash) {
+        remittanceHash = hash;
+        return remittance.sendMoney(remittanceHash, secondsClaimBackShort,
+          {from: alice, value: totalAmount, gasPrice: gasPrice});
+      }).then(function () {
           return getContractBalance();
       }).then(function (balance) {
         balanceBefore = balance;
-        return remittance.claimBack("hash1", {from: alice, gasPrice: gasPrice});
+        sleep.msleep(secondsClaimBackShort * 1001);
+        return remittance.claimBack(carol, passwordBob, {from: alice, gasPrice: gasPrice});
       }).then(function (txObj) {
         assert.strictEqual(txObj.logs[0].event, "MoneyClaimedBack");
         assert.strictEqual(txObj.logs[0].args.originalSender, alice);
@@ -117,25 +123,49 @@ contract('Remittance', function(accounts) {
       });
     });
 
-    it("should not allow claim back by other person", function() {
+    it("should not allow claim back with wrong password", function() {
       let balanceBefore;
-      return remittance.sendMoney("hash1",  daysClaim, 
-        {from: alice, value: totalAmount, gasPrice: gasPrice})
-      .then(function (balance) {
+      return getKeccak256FromContract(carol, passwordBob)
+      .then(function (hash) {
+        remittanceHash = hash;
+        return remittance.sendMoney(remittanceHash, secondsClaimBackShort,
+          {from: alice, value: totalAmount, gasPrice: gasPrice});
+      }).then(function (balance) {
         return expectedExceptionPromise(function () {
-          return remittance.claimBack("hash1", {from: carol, gasPrice: gasPrice});
+          sleep.msleep(secondsClaimBackShort * 1001);
+          return remittance.claimBack(carol, "wrong", {from: alice, gasPrice: gasPrice});
+        });
+      });
+    });
+
+    it("should not allow claim back before deadline", function() {
+      let balanceBefore;
+      return getKeccak256FromContract(carol, passwordBob)
+      .then(function (hash) {
+        remittanceHash = hash;
+        return remittance.sendMoney(remittanceHash, secondsClaimBackShort,
+          {from: alice, value: totalAmount, gasPrice: gasPrice});
+      }).then(function (balance) {
+        return expectedExceptionPromise(function () {
+          // don't wait, so it will be too early to claimback
+          return remittance.claimBack(carol, passwordBob, {from: alice, gasPrice: gasPrice});
         });
       });
     });
 
     it("should not allow claim back twice", function() {
-      return remittance.sendMoney("hash1",  daysClaim, 
-        {from: alice, value: totalAmount, gasPrice: gasPrice})
-      .then(function () {
-        return remittance.claimBack("hash1", {from: alice, gasPrice: gasPrice});
+      return getKeccak256FromContract(carol, passwordBob)
+      .then(function (hash) {
+        remittanceHash = hash;
+        return remittance.sendMoney(remittanceHash, secondsClaimBackShort,
+          {from: alice, value: totalAmount, gasPrice: gasPrice});
+      }).then(function () {
+        sleep.msleep(secondsClaimBackShort * 1001);
+        return remittance.claimBack(carol, passwordBob, {from: alice, gasPrice: gasPrice});
       }).then(function () {
         return expectedExceptionPromise(function () {
-          return remittance.claimBack("hash1", {from: carol, gasPrice: gasPrice});
+          sleep.msleep(secondsClaimBackShort * 1001);
+          return remittance.claimBack(carol, passwordBob, {from: carol, gasPrice: gasPrice});
         });
       });
     });
@@ -162,7 +192,7 @@ contract('Remittance', function(accounts) {
       return getKeccak256FromContract(carol, passwordBob)
       .then(function (hash) {
         remittanceHash = hash;
-        return remittance.sendMoney(remittanceHash, daysClaim,
+        return remittance.sendMoney(remittanceHash, secondsClaimBack,
           {from: alice, value: totalAmount, gasPrice: gasPrice});
       }).then(function () {
         return getContractBalance();
@@ -199,10 +229,25 @@ contract('Remittance', function(accounts) {
       return getKeccak256FromContract(carol, passwordBob)
       .then(function (hash) {
         remittanceHash = hash;
-        return remittance.sendMoney(remittanceHash, daysClaim,
+        return remittance.sendMoney(remittanceHash, secondsClaimBack,
           {from: bob, value: totalAmount, gasPrice: gasPrice});
       }).then(function () {
         return expectedExceptionPromise(function () {
+          return remittance.withdraw(passwordBob, {from: bob, gasPrice: gasPrice});
+        });
+      });
+    });
+
+    it("should not allow the withdrawl of " + totalAmount + 
+       " by Carol after deadline has passed", function() {
+      return getKeccak256FromContract(carol, passwordBob)
+      .then(function (hash) {
+        remittanceHash = hash;
+        return remittance.sendMoney(remittanceHash, secondsClaimBack,
+          {from: bob, value: totalAmount, gasPrice: gasPrice});
+      }).then(function () {
+        return expectedExceptionPromise(function () {
+          sleep.msleep(secondsClaimBack * 1001);
           return remittance.withdraw(passwordBob, {from: bob, gasPrice: gasPrice});
         });
       });
@@ -212,7 +257,7 @@ contract('Remittance', function(accounts) {
       return getKeccak256FromContract(carol, passwordBob)
       .then(function (hash) {
         remittanceHash = hash;
-        return remittance.sendMoney(remittanceHash, daysClaim,
+        return remittance.sendMoney(remittanceHash, secondsClaimBack,
         {from: alice, value: totalAmount, gasPrice: gasPrice})
       }).then(function () {
         return web3.eth.getBalancePromise(carol);
@@ -227,7 +272,7 @@ contract('Remittance', function(accounts) {
       return getKeccak256FromContract(carol, passwordBob)
       .then(function (hash) {
         remittanceHash = hash;
-        return remittance.sendMoney(remittanceHash, daysClaim,
+        return remittance.sendMoney(remittanceHash, secondsClaimBack,
           {from: alice, value: totalAmount, gasPrice: gasPrice})
       }).then(function () {
         return remittance.withdraw(passwordBob, {from: carol, 
@@ -247,13 +292,13 @@ contract('Remittance', function(accounts) {
       return getKeccak256FromContract(carol, passwordBob)
       .then(function (hash) {
         remittanceHash1 = hash;
-        return remittance.sendMoney(remittanceHash1, daysClaim,
+        return remittance.sendMoney(remittanceHash1, secondsClaimBack,
           {from: alice, value: totalAmount, gasPrice: gasPrice})
       }).then(function () {
         return getKeccak256FromContract(bob, passwordCarol)
       }).then(function (hash) {
         remittanceHash2 = hash;
-        return remittance.sendMoney(remittanceHash2, daysClaim,
+        return remittance.sendMoney(remittanceHash2, secondsClaimBack,
           {from: alice, value: totalAmount, gasPrice: gasPrice})
       }).then(function () {
         return getContractBalance();

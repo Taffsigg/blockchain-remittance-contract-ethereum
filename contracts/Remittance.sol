@@ -12,7 +12,7 @@ contract Remittance is Pausible {
     event ContractCreated(address owner);
     event MoneyClaimedBack(address originalSender);
     
-    uint constant public maxDaysClaimBack = 30;   
+    uint constant public maxSecondsClaimBack = 2592000;   
 
     struct RemittanceData {
         address sender;
@@ -42,16 +42,16 @@ contract Remittance is Pausible {
      * that calls this function.
      **/
     function sendMoney(
-            bytes32 remittanceHash, uint daysClaim)  public payable onlyWhenActive {
+            bytes32 remittanceHash, uint secondsClaimBack)  public payable onlyWhenActive {
                 
-        require(daysClaim <= maxDaysClaimBack, "Days claim back must be between 1 and 30");
-        require(daysClaim > 0, "Days claim back must be between 1 and 30");
+        require(secondsClaimBack <= maxSecondsClaimBack, "Seconds claim back must be between 1 and 2592000");
+        require(secondsClaimBack > 0, "Seconds claim back must be between 1 and 2592000");
         require(msg.value > 0, "Value sent must be greater than 0");
         require(remittanceHash != 0x0, "Incorrect remittance hash");
         require(remittances[remittanceHash].sender == 0x0, "Remittance hash already used");
         remittances[remittanceHash].balance = msg.value;
         remittances[remittanceHash].sender = msg.sender;
-        remittances[remittanceHash].deadline = now + (daysClaim * 1 days);
+        remittances[remittanceHash].deadline = now + (secondsClaimBack * 1 seconds);
         emit MoneySent(msg.sender, msg.value);
 
     }
@@ -69,10 +69,11 @@ contract Remittance is Pausible {
             public onlyWhenActive {
 
         bytes32 remittanceHash = getKeccak256(msg.sender, passwordBob);
-        uint availableBalance;
-        require(remittances[remittanceHash].balance != 0x0, 
+        uint availableBalance = remittances[remittanceHash].balance;
+        require(availableBalance != 0x0, 
             "Combination of passwords is not correct or no balance");
-        availableBalance = remittances[remittanceHash].balance;
+        require(now < remittances[remittanceHash].deadline, 
+            "Deadline reached, funds not withdrawn");
         remittances[remittanceHash].balance = 0;
         emit MoneyWithdrawnBy(msg.sender, availableBalance);
         msg.sender.transfer(availableBalance);
@@ -80,17 +81,18 @@ contract Remittance is Pausible {
     } 
  
     /**
-     * Carol can claim back the funds before Carol has withdrawn it. Alice only
-     * needs to provide the the remittance. 
+     * Alice can claim back the funds after the deadline has been reached
+     * by using Bob's password and Carol's address
      **/
-    function claimBack(bytes32 remittanceHash) public payable onlyWhenActive {
+    function claimBack(address carol, string passwordBob) 
+        public payable onlyWhenActive {
         
-        require(remittances[remittanceHash].balance != 0, "No balance or incorrect hash");
-        require(remittances[remittanceHash].sender == msg.sender, 
-            "Only sender can reclaim");
-        require(now <= remittances[remittanceHash].deadline, 
-            "Deadline reached, funds not claimed back");
+        bytes32 remittanceHash = getKeccak256(carol, passwordBob);
         uint availableBalance = remittances[remittanceHash].balance;
+        require(availableBalance != 0x0, 
+            "Combination of passwords is not correct or no balance");
+        require(now >= remittances[remittanceHash].deadline, 
+            "Deadline not reached yet, funds not claimed back");
         remittances[remittanceHash].balance = 0;
         emit MoneyClaimedBack(msg.sender);
         msg.sender.transfer(availableBalance);

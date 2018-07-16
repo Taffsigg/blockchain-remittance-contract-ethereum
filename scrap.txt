@@ -63,3 +63,9 @@ abi.soliditySHA3([ "string", "string", "address" ],[ "p1", "p2", new BN("14723a0
 Carol address:
 0x14723A09ACFF6D2A60DCDF7AA4AFF308FDDC160C
 
+
+
+0x2f6b9d2f654786cf2fc75f0dfff050903251fbc410f40c7018d73ccad735d4fe
+
+
+
