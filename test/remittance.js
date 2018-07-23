@@ -1,4 +1,4 @@
-const Remittance = artifacts.require("./Remittance.sol");
+const RemittanceFactory = artifacts.require("./RemittanceFactory.sol");
 const BigNumber = require('bignumber.js');
 const Promise = require('bluebird');
 const abi = require('ethereumjs-abi')
@@ -17,6 +17,7 @@ contract('Remittance', function(accounts) {
   const alice = accounts[0];
   const carol = accounts[1];
   const bob = accounts[2];
+  const admin = accounts[3];
 
   const passwordCarol = web3.fromAscii("p1", 32);
   const passwordBob = web3.fromAscii("p2", 32);
@@ -36,10 +37,13 @@ contract('Remittance', function(accounts) {
       {from: alice, gasPrice: gasPrice});
   }
 
-  beforeEach("should deploy a new instance", function() {
-    return Remittance.new({ from: carol })
-        .then(instance => remittance = instance);
-  });
+  beforeEach("should deploy a new instance", () =>
+    RemittanceFactory.new({ from: admin })
+        .then(instance => remittance = instance)
+    .then( () =>
+       remittanceFactory.createRemittance({ from: admin })
+    .then(instance => remittance = instance))
+  );
 
   describe("Deactivate a contract", function() {
     it("should allow the deactivation of an active contract", function() {
