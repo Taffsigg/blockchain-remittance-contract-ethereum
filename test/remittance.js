@@ -1,4 +1,5 @@
 const RemittanceFactory = artifacts.require("./RemittanceFactory.sol");
+const Remittance = artifacts.require("./Remittance.sol");
 const BigNumber = require('bignumber.js');
 const Promise = require('bluebird');
 const abi = require('ethereumjs-abi')
@@ -38,45 +39,59 @@ contract('Remittance', function(accounts) {
   }
 
   beforeEach("should deploy a new instance", () =>
-    RemittanceFactory.new({ from: admin })
-        .then(instance => remittance = instance)
-    .then( () =>
-       remittanceFactory.createRemittance({ from: admin })
-    .then(instance => remittance = instance))
+    Remittance.new({ from: admin })        
+    .then( (instance)  => {
+      remittance = instance;
+      console(Remittance);
+      console(RemittanceFactory);
+      console.log("fdfdf");
+      RemittanceFactory.new(remittance, { from: admin })})
+    .then( (instance) => {
+      let remittanceFactory = instance;     
+      console.log(remittanceFactory);
+      remittanceFactory.createRemittance({ from: admin })})
+    .then( (instance) => 
+      remittance = instance)
   );
 
-  describe("Deactivate a contract", function() {
-    it("should allow the deactivation of an active contract", function() {
-      return remittance.deactivate({ from: carol })
-        .then(function(txObj) {
-        assert.strictEqual(txObj.logs[0].event, "DeactivateContract");
-        assert.strictEqual(txObj.logs[0].args.owner, carol);
-      });
-    });
 
-    it("should allow the activation of an inactive contract", function() {
-      return remittance.deactivate({ from: carol })
-        .then(function() {
-        return remittance.activate({ from: carol });
-        }).then(function(txObj) {
-          assert.strictEqual(txObj.logs[0].event, "ActivateContract");
-        // Check that the owner really activated it, not somebody else
-        assert.strictEqual(txObj.logs[0].args.owner, carol);
-      });
-    });
+  // beforeEach("should deploy a new instance", function() {
+  //   return Splitter.new({ from: accounts[0] })
+  //       .then(instance => splitter = instance);
+  // });
 
-  });
+  // describe("Deactivate a contract", function() {
+  //   it("should allow the deactivation of an active contract", function() {
+  //     return remittance.deactivate({ from: carol })
+  //       .then(function(txObj) {
+  //       assert.strictEqual(txObj.logs[0].event, "DeactivateContract");
+  //       assert.strictEqual(txObj.logs[0].args.owner, carol);
+  //     });
+  //   });
+
+  //   it("should allow the activation of an inactive contract", function() {
+  //     return remittance.deactivate({ from: carol })
+  //       .then(function() {
+  //       return remittance.activate({ from: carol });
+  //       }).then(function(txObj) {
+  //         assert.strictEqual(txObj.logs[0].event, "ActivateContract");
+  //       // Check that the owner really activated it, not somebody else
+  //       assert.strictEqual(txObj.logs[0].args.owner, carol);
+  //     });
+  //   });
+
+  // });
 
   describe("Sending the money", function() {
-    it("should generate an error when trying to do send money on a deactivated contract", function() {
-      return remittance.deactivate({ from: carol })
-        .then(function() {
-        return expectedExceptionPromise(function () {
-          return remittance.sendMoney("some unimportant hash",  secondsClaimBack, 
-            {from: alice, value: totalAmount, gasPrice: gasPrice});
-        });
-      });
-    });
+    // it("should generate an error when trying to do send money on a deactivated contract", function() {
+    //   return remittance.deactivate({ from: carol })
+    //     .then(function() {
+    //     return expectedExceptionPromise(function () {
+    //       return remittance.sendMoney("some unimportant hash",  secondsClaimBack, 
+    //         {from: alice, value: totalAmount, gasPrice: gasPrice});
+    //     });
+    //   });
+    // });
 
     it("should send " + totalAmount + " wei to the Remittance contract", function() {
       let balanceBefore;
