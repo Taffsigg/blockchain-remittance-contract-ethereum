@@ -38,6 +38,17 @@ contract('Remittance', function(accounts) {
       {from: alice, gasPrice: gasPrice});
   }
 
+  before("should create the remittance factory", () => {
+    Remittance.new({ from: admin })        
+    .then( (instance)  => {
+      remittance = instance
+      RemittanceFactory.new(instance.address, { from: admin })})
+    .then( (instance) => {
+      console.log(instance)
+      // instance undefined ???
+      remittanceFactory = instance})
+    });
+
   // beforeEach("should deploy a new instance", () =>
   //     remittanceFactory.createRemittance(10000, { from: admin })
   //   .then( (instance) => {
