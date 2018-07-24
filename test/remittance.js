@@ -2,8 +2,7 @@ const RemittanceFactory = artifacts.require("./RemittanceFactory.sol");
 const Remittance = artifacts.require("./Remittance.sol");
 const BigNumber = require('bignumber.js');
 const Promise = require('bluebird');
-const abi = require('ethereumjs-abi')
-var sleep = require('sleep');
+const sleep = require('sleep');
 
 contract('Remittance', function(accounts) {
 
@@ -24,6 +23,7 @@ contract('Remittance', function(accounts) {
   const passwordBob = web3.fromAscii("p2", 32);
   
   let remittance;
+  let remittanceFactory;
 
   function getGasUsedInWei(txObj) {
     return gasPrice * txObj.receipt.gasUsed;
@@ -38,27 +38,25 @@ contract('Remittance', function(accounts) {
       {from: alice, gasPrice: gasPrice});
   }
 
-  beforeEach("should deploy a new instance", () =>
+  before("should create the remittance factory", () => {
     Remittance.new({ from: admin })        
     .then( (instance)  => {
-      remittance = instance;
-      console(Remittance);
-      console(RemittanceFactory);
-      console.log("fdfdf");
-      RemittanceFactory.new(remittance, { from: admin })})
+      console.log(instance)
+      // remittance = instance
+      RemittanceFactory.new(instance.address, { from: admin })})
     .then( (instance) => {
-      let remittanceFactory = instance;     
-      console.log(remittanceFactory);
-      remittanceFactory.createRemittance({ from: admin })})
-    .then( (instance) => 
-      remittance = instance)
-  );
+      console.log(instance)
+      remittanceFactory = instance})
+    });
 
+  // beforeEach("should deploy a new instance", () =>
+  //     remittanceFactory.createRemittance(10000, { from: admin })
+  //   .then( (instance) => {
+  //     console.log(instance)
+  //     remittance = instance})
+  // );
 
-  // beforeEach("should deploy a new instance", function() {
-  //   return Splitter.new({ from: accounts[0] })
-  //       .then(instance => splitter = instance);
-  // });
+  Remittance.new({ from: admin }).then( (instance)  => RemittanceFactory.new(instance.address, { from: admin })).then( (instance) => bla = instance)
 
   // describe("Deactivate a contract", function() {
   //   it("should allow the deactivation of an active contract", function() {
