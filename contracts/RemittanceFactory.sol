@@ -16,5 +16,4 @@ contract RemittanceFactory {
         returns (Remittance) {
         return Remittance(new RemittanceProxy(masterCopy, maxSecondsClaimBack));
     }
-    
 }

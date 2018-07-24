@@ -83,3 +83,7 @@ RemittanceFactory.deployed().then( (instance) => instance.createRemittance(10000
 
 Remittance.new({ from: admin }).then( (instance)  => RemittanceFactory.new(instance.address, { from: admin })).then( (instance) => console.log(instance))
 
+
+Remittance.new({ from: admin }).then( (instance) => console.log(typeof(instance)))
+Remittance.new({ from: admin }).then( (instance) => remittance = instance)
+RemittanceFactory.new(remittance.address, { from: admin }).then( (instance) => remittanceFactory = instance)
